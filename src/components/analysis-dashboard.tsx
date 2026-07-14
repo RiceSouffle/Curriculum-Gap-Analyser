@@ -12,7 +12,9 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { SkillGapChart } from "./skill-gap-chart";
 import { SkillList } from "./skill-list";
+import { LearningRoadmap } from "./learning-roadmap";
 import { AnalysisResult } from "@/types";
+import { toMarkdownReport } from "@/lib/report";
 import {
   CheckCircle,
   XCircle,
@@ -20,10 +22,15 @@ import {
   BarChart3,
   RotateCcw,
   Lightbulb,
-  Download,
+  FileJson,
+  FileText,
   TrendingUp,
   TrendingDown,
   Target,
+  Route,
+  FlaskConical,
+  Bot,
+  Cpu,
 } from "lucide-react";
 
 interface AnalysisDashboardProps {
@@ -49,37 +56,94 @@ function getScoreBg(score: number) {
   return "bg-red-500/10";
 }
 
+function download(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function AnalysisDashboard({ result, onReset }: AnalysisDashboardProps) {
+  const meta = result.meta;
+
   return (
     <div className="space-y-6">
       {/* Header actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <Button variant="outline" onClick={onReset} className="rounded-xl gap-2">
           <RotateCcw className="h-4 w-4" />
           New Analysis
         </Button>
-        <Button
-          variant="outline"
-          className="rounded-xl gap-2"
-          onClick={() => {
-            const dataStr = JSON.stringify(result, null, 2);
-            const blob = new Blob([dataStr], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "gap-analysis-report.json";
-            a.click();
-            URL.revokeObjectURL(url);
-          }}
-        >
-          <Download className="h-4 w-4" />
-          Export
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="rounded-xl gap-2"
+            onClick={() =>
+              download(
+                "gap-analysis-report.md",
+                toMarkdownReport(result),
+                "text/markdown",
+              )
+            }
+          >
+            <FileText className="h-4 w-4" />
+            Report
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-xl gap-2"
+            onClick={() =>
+              download(
+                "gap-analysis.json",
+                JSON.stringify(result, null, 2),
+                "application/json",
+              )
+            }
+          >
+            <FileJson className="h-4 w-4" />
+            JSON
+          </Button>
+        </div>
       </div>
+
+      {/* Provenance strip — never misrepresent demo data as live */}
+      {meta && (
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          {meta.mode === "demo" ? (
+            <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-1 font-medium">
+              <FlaskConical className="h-3 w-3" />
+              Sample job data
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-1 font-medium">
+              Live job data
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 rounded-md bg-muted text-muted-foreground border border-border/50 px-2 py-1">
+            {meta.extractor === "llm" ? (
+              <>
+                <Bot className="h-3 w-3" />
+                AI skill extraction
+              </>
+            ) : (
+              <>
+                <Cpu className="h-3 w-3" />
+                Rule-based extraction
+              </>
+            )}
+          </span>
+          <span className="text-muted-foreground">
+            Scoring is deterministic — every number traces to the demand chart below.
+          </span>
+        </div>
+      )}
 
       {/* Score Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className={`border-border/50 overflow-hidden`}>
+        <Card className="border-border/50 overflow-hidden">
           <CardContent className="p-5">
             <div className="flex items-start justify-between mb-3">
               <div className={`p-2 rounded-xl ${getScoreBg(result.coverageScore)}`}>
@@ -136,6 +200,26 @@ export function AnalysisDashboard({ result, onReset }: AnalysisDashboardProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Learning Roadmap — the actionable centerpiece */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary/10">
+              <Route className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Learning Roadmap</CardTitle>
+              <CardDescription className="text-xs">
+                Missing skills sequenced by employer demand — close the top gaps first
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <LearningRoadmap result={result} />
+        </CardContent>
+      </Card>
 
       {/* Gap Chart */}
       <Card className="border-border/50">
@@ -209,7 +293,7 @@ export function AnalysisDashboard({ result, onReset }: AnalysisDashboardProps) {
             <div>
               <CardTitle className="text-base">Recommendations</CardTitle>
               <CardDescription className="text-xs">
-                AI-generated suggestions to close the gap
+                Derived from the gap above — reproducible, not guessed
               </CardDescription>
             </div>
           </div>

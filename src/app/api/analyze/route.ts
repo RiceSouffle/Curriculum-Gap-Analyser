@@ -14,6 +14,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "At least one job posting is required" }, { status: 400 });
     }
 
+    // jobSource is derived server-side from key presence inside analyzeGap — the
+    // client cannot relabel demo data as live.
     const result = await analyzeGap({ curriculumText, jobPostings });
 
     return NextResponse.json(result);

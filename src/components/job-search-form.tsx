@@ -6,25 +6,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Search, Loader2, Briefcase, ArrowLeft, ArrowRight, MapPin } from "lucide-react";
+import { Search, Loader2, Briefcase, ArrowLeft, ArrowRight, MapPin, FlaskConical } from "lucide-react";
 import { JobPosting } from "@/types";
 
 interface JobSearchFormProps {
   onResults: (jobs: JobPosting[]) => void;
   onBack: () => void;
+  onSearchStart?: () => void;
+  initialQuery?: string;
+  initialJobs?: JobPosting[];
 }
 
-export function JobSearchForm({ onResults, onBack }: JobSearchFormProps) {
-  const [query, setQuery] = useState("");
+export function JobSearchForm({
+  onResults,
+  onBack,
+  onSearchStart,
+  initialQuery = "",
+  initialJobs = [],
+}: JobSearchFormProps) {
+  const [query, setQuery] = useState(initialQuery);
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [jobs, setJobs] = useState<JobPosting[]>([]);
+  // Seed from any previously fetched jobs so a bounced-back analysis keeps the list.
+  const [jobs, setJobs] = useState<JobPosting[]>(initialJobs);
+  const [source, setSource] = useState<"jsearch" | "demo">("demo");
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!query.trim()) return;
 
+    onSearchStart?.(); // clear any stale page-level error banner
     setLoading(true);
     setError(null);
 
@@ -37,6 +49,7 @@ export function JobSearchForm({ onResults, onBack }: JobSearchFormProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setJobs(data.jobs);
+      setSource(data.source === "jsearch" ? "jsearch" : "demo");
       if (data.jobs.length === 0) {
         setError("No jobs found. Try broader keywords (e.g. \"Software Developer\") or leave location empty for global results.");
       }
@@ -124,8 +137,20 @@ export function JobSearchForm({ onResults, onBack }: JobSearchFormProps) {
                   <Briefcase className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-semibold">Found {jobs.length} job postings</p>
-                  <p className="text-xs text-muted-foreground">Ready for gap analysis</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">Found {jobs.length} job postings</p>
+                    {source === "demo" && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium">
+                        <FlaskConical className="h-2.5 w-2.5" />
+                        Sample data
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {source === "demo"
+                      ? "Bundled corpus — add a RapidAPI key for live listings"
+                      : "Live from LinkedIn, Indeed, Glassdoor & more"}
+                  </p>
                 </div>
               </div>
               <Button onClick={() => onResults(jobs)} size="lg" className="rounded-xl gap-2 px-6">

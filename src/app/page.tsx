@@ -4,9 +4,10 @@ import { useState } from "react";
 import { CurriculumInput } from "@/components/curriculum-input";
 import { JobSearchForm } from "@/components/job-search-form";
 import { AnalysisDashboard } from "@/components/analysis-dashboard";
+import { AnalyzingView } from "@/components/analyzing-view";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AnalysisResult, AppStep, JobPosting } from "@/types";
-import { Loader2, GraduationCap, Check } from "lucide-react";
+import { GraduationCap, Check } from "lucide-react";
 
 const STEPS = [
   { key: "input" as const, label: "Curriculum", num: 1 },
@@ -20,25 +21,28 @@ const STEP_ORDER: AppStep[] = ["input", "search", "analyzing", "results"];
 export default function Home() {
   const [step, setStep] = useState<AppStep>("input");
   const [curriculumText, setCurriculumText] = useState("");
+  const [suggestedRole, setSuggestedRole] = useState("");
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleCurriculumSubmit(text: string) {
+  function handleCurriculumSubmit(text: string, role = "") {
     setCurriculumText(text);
+    setSuggestedRole(role);
+    setError(null);
     setStep("search");
   }
 
-  async function handleJobResults(jobs: JobPosting[]) {
+  async function handleJobResults(fetched: JobPosting[]) {
+    setJobs(fetched); // keep them so an analysis failure doesn't force a re-search
     setStep("analyzing");
-    setAnalyzing(true);
     setError(null);
 
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ curriculumText, jobPostings: jobs }),
+        body: JSON.stringify({ curriculumText, jobPostings: fetched }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -47,14 +51,14 @@ export default function Home() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
       setStep("search");
-    } finally {
-      setAnalyzing(false);
     }
   }
 
   function handleReset() {
     setStep("input");
     setCurriculumText("");
+    setSuggestedRole("");
+    setJobs([]);
     setAnalysisResult(null);
     setError(null);
   }
@@ -139,27 +143,18 @@ export default function Home() {
 
         {step === "search" && (
           <JobSearchForm
+            initialQuery={suggestedRole}
+            initialJobs={jobs}
             onResults={handleJobResults}
-            onBack={() => setStep("input")}
+            onSearchStart={() => setError(null)}
+            onBack={() => {
+              setError(null);
+              setStep("input");
+            }}
           />
         )}
 
-        {step === "analyzing" && analyzing && (
-          <div className="flex flex-col items-center justify-center py-32 gap-6">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-              <div className="relative flex items-center justify-center h-16 w-16 rounded-full bg-primary/10">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            </div>
-            <div className="text-center space-y-2">
-              <p className="text-lg font-semibold">Analyzing curriculum gaps...</p>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Extracting skills and comparing your curriculum against job market demands
-              </p>
-            </div>
-          </div>
-        )}
+        {step === "analyzing" && <AnalyzingView jobCount={jobs.length} />}
 
         {step === "results" && analysisResult && (
           <AnalysisDashboard result={analysisResult} onReset={handleReset} />
